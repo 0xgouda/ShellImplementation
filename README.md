@@ -1,5 +1,5 @@
 # Simple Shell 
-- (gouda shell aka gsh)
+- gouda shell aka __gsh__
 
 - A beginner shell project in C that supports basic commands, output redirection, command repetition, and batch file processing. 
 
@@ -14,8 +14,12 @@
   - `loop <number> <command>`: Run `<command>` `<number>` times.
 - **Batch File Mode**: Execute commands from a file provided as an argument.
 
-## Usage Examples
+## Usage
 
+```bash
+gcc gsh.c -o gsh
+./gsh
+```
 ```bash
 gsh> cd /home
 gsh> pwd
