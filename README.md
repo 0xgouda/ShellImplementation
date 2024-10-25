@@ -20,10 +20,13 @@
 gsh> cd /path/to/directory
 gsh> some wrong command
 An error has occurred
-gsh> path /bin /usr/bin
-gsh> loop 3 echo "Hello"
-Hello
-Hello
+gsh> path /bin/ /usr/bin/
+gsh> loop 3 whoami
+ahmed
+ahmed
+ahmed
+gsh> echo "Hello" > file.txt
+gsh> cat file.txt
 Hello
 gsh> exit
 ```
