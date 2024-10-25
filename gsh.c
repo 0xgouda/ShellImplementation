@@ -126,11 +126,6 @@ int main(int argc, char **argv) {
             char cwd[1024];
             if (getcwd(cwd, sizeof(cwd)) != NULL) {
                 chdir(command[1]);
-                if (getcwd(cwd, sizeof(cwd)) != NULL) {
-                    raiseError();
-                } else {
-                    raiseError();
-                }
             } else {
                 raiseError();
             }
