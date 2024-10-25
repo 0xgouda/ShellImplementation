@@ -17,7 +17,9 @@
 ## Usage Examples
 
 ```bash
-gsh> cd /path/to/directory
+gsh> cd /home
+gsh> pwd
+/home
 gsh> some wrong command
 An error has occurred
 gsh> path /bin/ /usr/bin/
