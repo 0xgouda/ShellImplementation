@@ -1,5 +1,5 @@
 # Simple Shell 
-- gouda shell aka __gsh__
+- (gouda shell aka gsh)
 
 - A beginner shell project in C that supports basic commands, output redirection, command repetition, and batch file processing. 
 
@@ -9,30 +9,25 @@
   - `cd <path>`: Change the current directory to `<path>`.
   - `exit`: Exit the shell.
   - `path <dir1> <dir2> ...`: Update the shell's `PATH`.
-- **Executable Commands**: Run commands located in directories from `PATH`.
+- **Executable Commands**: Run commands located in directories from `PATH` default `/bin/`.
 - **Loop Command**: Repeat a command multiple times.
   - `loop <number> <command>`: Run `<command>` `<number>` times.
 - **Batch File Mode**: Execute commands from a file provided as an argument.
 
-## Usage
+## Usage Example
+```bash
+gcc -o gsh gsh.c
+```
 
 ```bash
-gcc gsh.c -o gsh
-./gsh
-```
-```bash
-gsh> cd /home
-gsh> pwd
-/home
-gsh> some wrong command
-An error has occurred
+gsh> cd /path/to/directory
+/path/to/directory
 gsh> path /bin/ /usr/bin/
-gsh> loop 3 whoami
-ahmed
-ahmed
-ahmed
-gsh> echo "Hello" > file.txt
-gsh> cat file.txt
+/bin/
+/usr/bin/
+gsh> loop 3 echo "Hello"
+Hello
+Hello
 Hello
 gsh> exit
 ```

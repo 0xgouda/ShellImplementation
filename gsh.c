@@ -6,37 +6,88 @@
 #include <fcntl.h>
 #include <sys/wait.h>
 
-// read input line
-char* readInput(int* checkEOF) {
-    char *lineBuffer = NULL;
-    size_t lineBufferSize = 0;
-    printf("gsh> "); fflush(stdout);
-    *checkEOF = getline(&lineBuffer, &lineBufferSize, stdin);
-    return lineBuffer;
+#define TOK_DELIM " \n\t\r"
+#define RED "\033[0;31m"
+#define RESET "\e[0m"
+
+
+void Error(char* message) {
+    fprintf(stderr, "%s%s%s\n", RED, message, RESET);
 }
 
-// splits the line into differnet words
-char** splitString(char* line, int num) {
-    char** command = malloc(sizeof(char *) * (num + 1));
-    int i = 0; const unsigned long len = strlen(line);
+void increaseSize(char* Buffer, int* BuffSize) {
+    *BuffSize += 1024;
+    Buffer = realloc(Buffer, *BuffSize * sizeof(char));
+    if (Buffer == NULL) Error("Allocation Error");
+}
 
-    int cnt = 0;
-    while (cnt < num) {
-        while (i < len && isspace(*(line + i))) ++i;
-        int j = i;
-        while (j < len && !isspace(*(line + j))) ++j;
+// read input line
+void readInput(char** line, char** redirectionDest) {
+    int lineSize = 1024; int redirectionDestSize = 1024;
 
-        char tmp = *(line + j);
-        *(line + j) = '\0';
+    *line = malloc(lineSize * sizeof(char));
 
-        command[cnt] = malloc(sizeof(line + i) + 1);
-        strcpy(command[cnt], line + i);
+    int position = 0; int redirected = 0; int redirectionPosition = 0;
+    if (*line == NULL) Error("Allocation Error");
 
-        *(line + j) = tmp;
-        i = j; ++i; cnt++;
+    printf("gsh> "); fflush(stdout);
+    while (1) {
+        const char c = getchar();
+        if (c == EOF || c == '\n') {
+            if (redirected) (*redirectionDest)[redirectionPosition] = '\0';
+            else (*line)[position] = '\0';
+            return;
+        } else if (c == '>' || redirected) {
+            if (!redirected) {
+                *redirectionDest = malloc(redirectionDestSize * sizeof(char));
+            }
+
+            (*redirectionDest)[redirectionPosition] = c;
+            ++redirectionPosition; redirected++;
+
+        } else if (!redirected) {
+            (*line)[position] = c;
+            ++position;
+        }
+
+        if (position >= lineSize) {
+            increaseSize(*line, &lineSize);
+        }
+
+        if (redirectionPosition >= redirectionDestSize) {
+            increaseSize(*redirectionDest, &redirectionDestSize);
+        }
     }
-    command[num] = NULL;
-    return command;
+}
+
+// splits the line into different words
+char** splitLine(char* line, int* numOfArgs) {
+    int position = 0; int BuffSize = 1024;
+    char** tokens = malloc(BuffSize * sizeof(char*));
+    if (tokens == NULL) Error("Allocation Error");
+
+    char * token = strtok(line, TOK_DELIM);
+    while (token != NULL) {
+        tokens[position] = token;
+        ++position;
+
+        // Duplicated
+        if (position >= BuffSize) {
+            BuffSize += 1024;
+            tokens = realloc(tokens, BuffSize * sizeof(char*));
+            if (tokens == NULL) Error("Allocation Error");
+        }
+
+        token = strtok(NULL, TOK_DELIM);
+    }
+    tokens[position] = NULL;
+    *numOfArgs = position;
+
+    return tokens;
+}
+
+int terminate(const int status) {
+     exit(status);
 }
 
 // search the executable in the PATH variable
@@ -51,25 +102,6 @@ char* checkExecutable(char** PATH, const int len, char* program) {
     return NULL;
 }
 
-// parse the line to get the number of words, check if redirection is used
-int parseLine(char* line, char** redirectString) {
-    int num = 0, i = 0;
-    const unsigned long len = strlen(line);
-    while (i < len) {
-        while (i < len && isspace(*(line + i))) ++i;
-        while (i < len && !isspace(*(line + i))) {
-            if (*(line + i) == '>') {
-                *redirectString = line + i + 1;
-                *(line + i) = '\0';
-                return *(line + i - 1) == ' ' ? num : ++num;
-            }
-            ++i;
-        }
-        ++num;
-    }
-    return --num;
-}
-
 void freeAll(char** var, const int len) {
     for (int i = 0; i < len; i++) {
         free(var[i]);
@@ -77,105 +109,110 @@ void freeAll(char** var, const int len) {
     free(var);
 }
 
-void raiseError() {
-    printf("An error has occurred\n");
+void execute(char** args, char** PATH, int numOfPathDirs, char* redirectFile) {
+    int tries = 1, offset = 0;
+    if (!strcmp(args[0], "loop")) {
+        tries = atoi(args[1]);
+        offset = 2;
+    }
+
+    char* path = checkExecutable(PATH, numOfPathDirs, args[offset]);
+    if (path != NULL) {
+        for (int i = 0; i < tries; i++) {
+            const int rc = fork();
+            if (rc < 0) {
+                Error("An error has occurred");
+            } else if (rc == 0) {
+                if (redirectFile != NULL) {
+                    close(STDOUT_FILENO); close(STDERR_FILENO);
+                    open(redirectFile, O_CREAT|O_WRONLY|O_TRUNC, S_IRWXU);
+                }
+
+                execv(path, args + offset);
+            } else {
+                wait(NULL);
+            }
+        }
+        free(path);
+    } else {
+        Error("An error has occurred");
+    }
 }
+
 
 int main(int argc, char **argv) {
     // set the PATH variable
-    char** PATH = malloc(1 * sizeof(char*));
+    int numOfPathDirs = 1;
+    char** PATH = malloc(numOfPathDirs * sizeof(char*));
     PATH[0] = malloc(6 * sizeof(char));
-    strcpy(PATH[0], "/bin/"); int pathLen = 1;
+    strcpy(PATH[0], "/bin/");
 
     // implement batch file commands
     if (argc > 1) {
         if (argc != 2) {
-            raiseError(); exit(1);
+            Error("An error has occurred"); terminate(1);
         }
 
         close(STDIN_FILENO);
         open(argv[1], O_RDONLY);
     }
 
+    // Show No Errors
+    close(STDERR_FILENO);
     while (1) {
         // read the input
-        int checkEOF;
-        char* line = readInput(&checkEOF);
-        if (checkEOF == -1) exit(0);
-        // parse input
-        char* redirectString = NULL; // get the redirected to string
-        const int numOfArgs = parseLine(line, &redirectString);
-        if (numOfArgs < 1) {
-            raiseError(); continue;
+        char* line = NULL; char* redirectDest = NULL;
+        readInput(&line, &redirectDest);
+
+        int numOfArgs = 0;
+        char** args = splitLine(line, &numOfArgs);
+
+        char** redirectArgs = NULL; char* redirectFile = NULL;
+        if (redirectDest != NULL) {
+            int numOfredirectArgs;
+            redirectArgs = splitLine(redirectDest, &numOfredirectArgs);
+            if (numOfredirectArgs > 1) Error("Redirection Error");
+            redirectFile = redirectArgs[1];
         }
 
-
-        char** redirectFile = NULL;
-        if (redirectString != NULL) {
-            char** check = NULL;
-            if (parseLine(redirectString, check) > 1 || check != NULL) {
-                raiseError();
-                continue;
-            }
-            redirectFile = splitString(redirectString, 1);
-        }
-
-        char** command = splitString(line, numOfArgs);
         // run the `cd` built-in command
-        if (!strcmp(command[0], "cd") && numOfArgs == 2) {
+        if (!strcmp(args[0], "cd") && numOfArgs == 2) {
             char cwd[1024];
             if (getcwd(cwd, sizeof(cwd)) != NULL) {
-                chdir(command[1]);
+                chdir(args[1]);
+                printf("%s\n", getcwd(cwd, sizeof(cwd)));
             } else {
-                raiseError();
+                Error("An error has occurred");
             }
         }
         // run `exit` built-in command
-        else if (!strcmp(command[0], "exit")) {
-            freeAll(PATH, pathLen); free(line); freeAll(command, numOfArgs);
+        else if (!strcmp(args[0], "exit")) {
+            freeAll(PATH, numOfPathDirs); free(args); free(line);
+            if (redirectFile != NULL) {
+                free(redirectArgs); free(redirectDest);
+            }
+
+            if (redirectArgs != NULL) free(redirectArgs);
             exit(0);
         }
         // implement the `path` built-in command
-        else if (!strcmp(command[0], "path")) {
-            freeAll(PATH, pathLen);
+        else if (!strcmp(args[0], "path")) {
+            freeAll(PATH, numOfPathDirs);
             PATH = malloc((numOfArgs - 1) * sizeof(char*));
             for (int i = 1; i < numOfArgs; i++) {
-                PATH[i - 1] = malloc(strlen(command[i]) + 1);
-                strcpy(PATH[i - 1], command[i]);
+                PATH[i - 1] = malloc(strlen(args[i]) + 1);
+                strcpy(PATH[i - 1], args[i]);
+                printf("%s\n", PATH[i - 1]);
             }
-            pathLen = numOfArgs - 1;
+            numOfPathDirs = numOfArgs - 1;
         }
         // run executable commands
         else {
-            int tries = 1, offset = 0;
-            if (!strcmp(command[0], "loop")) {
-                tries = atoi(command[1]);
-                offset = 2;
-            }
-
-            char* path = checkExecutable(PATH, pathLen, command[offset]);
-            if (path != NULL) {
-                for (int i = 0; i < tries; i++) {
-                    const int rc = fork();
-                    if (rc < 0) {
-                        raiseError();
-                    } else if (rc == 0) {
-                        if (redirectFile != NULL) {
-                            close(STDOUT_FILENO); close(STDERR_FILENO);
-                            open(*redirectFile, O_CREAT|O_WRONLY|O_TRUNC, S_IRWXU);
-                        }
-
-                        execv(path, command + offset);
-                    } else {
-                        wait(NULL);
-                    }
-                }
-                free(path);
-            } else {
-                raiseError();
-            }
+            execute(args, PATH, numOfPathDirs, redirectFile);
         }
-        free(line); freeAll(command, numOfArgs);
-        if (redirectFile != NULL) freeAll(redirectFile, 1);
+        free(args); free(line);
+        if (redirectFile != NULL) {
+            free(redirectArgs); free(redirectDest);
+        }
     }
 } 
