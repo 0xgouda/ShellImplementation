@@ -157,8 +157,6 @@ int main(int argc, char **argv) {
         open(argv[1], O_RDONLY);
     }
 
-    // Show No Errors
-    close(STDERR_FILENO);
     while (1) {
         // read the input
         char* line = NULL; char* redirectDest = NULL;
