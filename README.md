@@ -27,11 +27,17 @@ gcc -o gsh gsh.c
 ./gsh
 ```
 ```bash
-gsh> cd /path/to/directory
-gsh> path /bin/ /usr/bin/
-gsh> loop 3 echo "Hello"
-Hello
-Hello
-Hello
+gsh> path /bin /usr/bin /opt/bin
+/bin
+/usr/bin
+/opt/bin
+gsh> rm output.txt
+gsh> ls -l > output.txt
+gsh> loop 5 echo "Running in a loop"
+"Running in a loop"
+"Running in a loop"
+"Running in a loop"
+"Running in a loop"
+"Running in a loop"
 gsh> exit
 ```
